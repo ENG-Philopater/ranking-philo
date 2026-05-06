@@ -44,19 +44,14 @@ body::before {
     radial-gradient(ellipse 60% 80% at 80% 90%, rgba(74,143,168,0.03) 0%, transparent 60%);
 }
 
-/* ─── NAV ─── */
-<nav> {
-  <div class="nav-icon">
-    <img src="icon.png" alt="لوجو التقييم" style="width: 28px; height: 28px; vertical-align: middle; margin-left: 8px; border-radius: 50%;">
-    نظام تقييم المشاريع المعمارية
-  </div>
-  <div class="nav-btns">
-    <button class="nav-btn active" onclick="showPage('start')">الرئيسية</button>
-    <button class="nav-btn" onclick="showPage('ratings')">التقييم</button>
-    <button class="nav-btn" onclick="showPage('upload')">رفع مشروع</button>
-    <button class="nav-btn" onclick="showPage('top3')">الترتيب</button>
-  </div>
-</nav>
+/* ─── NAV CSS (للتصميم فقط) ─── */
+nav {
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(10,10,15,0.97);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.8rem; height: 64px;
 }
 
 .nav-logo {
@@ -79,6 +74,25 @@ body::before {
 .nav-btn:hover, .nav-btn.active {
   border-color: var(--gold); color: var(--gold); background: var(--gold-dim);
 }
+
+/* ... (باقي أكواد الـ CSS بتاعتك كملها هنا عادي) ... */
+
+</style>
+</head>
+<body>
+
+<nav>
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <img src="icon.png" alt="لوجو التقييم" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+    <div class="nav-logo">نظام تقييم المشاريع المعمارية</div>
+  </div>
+  <div class="nav-btns">
+    <button class="nav-btn active" onclick="showPage('start')">الرئيسية</button>
+    <button class="nav-btn" onclick="showPage('ratings')">التقييم</button>
+    <button class="nav-btn" onclick="showPage('upload')">رفع مشروع</button>
+    <button class="nav-btn" onclick="showPage('top3')">الترتيب</button>
+  </div>
+</nav>
 
 /* ─── PAGES ─── */
 .page { display: none; position: relative; z-index: 1; }
