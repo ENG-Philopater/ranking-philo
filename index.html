@@ -704,11 +704,30 @@ nav {
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+// استيراد مكتبات فايربيز
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getFirestore, collection, getDocs, setDoc, doc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+// ====== إعدادات فايربيز (المفاتيح بتاعتك) ======
+const firebaseConfig = {
+  apiKey: "AIzaSyCVIK2KZONTmYAOfu-GtuyCATHahpiyx9E",
+  authDomain: "dahab-voting.firebaseapp.com",
+  projectId: "dahab-voting",
+  storageBucket: "dahab-voting.firebasestorage.app",
+  messagingSenderId: "920314965726",
+  appId: "1:920314965726:web:23bc5b612f1c7c17805c4f",
+  measurementId: "G-C8VST7XK5D"
+};
+
+// تشغيل فايربيز
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 // ══════════════════════
 // CONSTANTS
 // ══════════════════════
-const CRITERIA = [
+window.CRITERIA = [
   { key:'dahab',   label:'التعبير عن هوية دهب' },
   { key:'gaudi',   label:'استلهام من الطبيعة وفلسفة جاودي' },
   { key:'traffic', label:'الوظيفة والحركة المرورية' },
@@ -716,17 +735,52 @@ const CRITERIA = [
   { key:'innov',   label:'الابتكار والتميز' },
   { key:'quality', label:'جودة الإخراج المعماري' },
 ];
-const MAX_TOTAL = CRITERIA.length * 5; // 30
+window.MAX_TOTAL = window.CRITERIA.length * 5; // 30
 
 // ══════════════════════
-// DATA
+// DATA (البيانات متصلة بفايربيز)
 // ══════════════════════
-const getData   = () => JSON.parse(localStorage.getItem('arch2_profiles') || '[]');
-const saveData  = d  => localStorage.setItem('arch2_profiles', JSON.stringify(d));
-const getVoted  = () => JSON.parse(localStorage.getItem('arch2_voted') || '[]');
-const saveVoted = v  => localStorage.setItem('arch2_voted', JSON.stringify(v));
+let cachedProfiles = [];
 
-function getFP() {
+// دالة لجلب المشاريع من قاعدة البيانات
+async function fetchProfiles() {
+  try {
+    const querySnapshot = await getDocs(collection(db, "projects"));
+    cachedProfiles = [];
+    querySnapshot.forEach((doc) => {
+      cachedProfiles.push(doc.data());
+    });
+    
+    // تحديث الواجهة لو فاتح صفحة التقييم أو الترتيب
+    if(document.getElementById('ratingsPage').classList.contains('active')) renderRatings();
+    if(document.getElementById('top3Page').classList.contains('active')) renderTop3();
+  } catch (e) {
+    console.error("Error fetching data:", e);
+  }
+}
+
+// تشغيل الجلب أول ما الموقع يفتح
+fetchProfiles();
+
+window.getData = () => cachedProfiles;
+
+window.saveData = async (d) => {
+  cachedProfiles = d;
+  try {
+    // تحديث كل المشاريع في فايربيز
+    for (const p of d) {
+      await setDoc(doc(db, "projects", p.id), p);
+    }
+  } catch (e) {
+    console.error("Error saving document: ", e);
+    showToast("مشكلة في الاتصال بقاعدة البيانات");
+  }
+};
+
+window.getVoted  = () => JSON.parse(localStorage.getItem('arch2_voted') || '[]');
+window.saveVoted = v  => localStorage.setItem('arch2_voted', JSON.stringify(v));
+
+window.getFP = function() {
   let fp = localStorage.getItem('arch2_fp');
   if (!fp) { fp = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('arch2_fp', fp); }
   return fp;
@@ -735,7 +789,7 @@ function getFP() {
 // ══════════════════════
 // NAVIGATION
 // ══════════════════════
-function showPage(page) {
+window.showPage = function(page) {
   const ids = ['startPage','ratingsPage','uploadPage','top3Page'];
   ids.forEach(id => { const e = document.getElementById(id); e.classList.remove('active'); e.style.display = 'none'; });
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -754,29 +808,29 @@ function showPage(page) {
 // ══════════════════════
 // RATINGS
 // ══════════════════════
-let pidx = 0, curSlide = 0, vals = {};
+window.pidx = 0; window.curSlide = 0; window.vals = {};
 
-function renderRatings() {
-  const profiles = getData();
+window.renderRatings = function() {
+  const profiles = window.getData();
   const el = document.getElementById('ratingsContent');
-  const fp = getFP(), voted = getVoted();
+  const fp = window.getFP(), voted = window.getVoted();
 
   if (!profiles.length) {
     el.innerHTML = `<div class="empty"><div class="ei">🏗️</div><div>لا توجد مشاريع — ارفع أول مشروع!</div></div>`;
     return;
   }
 
-  if (pidx >= profiles.length) pidx = 0;
-  curSlide = 0; vals = {};
+  if (window.pidx >= profiles.length) window.pidx = 0;
+  window.curSlide = 0; window.vals = {};
 
-  const p = profiles[pidx];
-  const alreadyVoted = voted.includes(getFP() + '_' + p.id);
-  const navPrev = pidx > 0, navNext = pidx < profiles.length - 1;
+  const p = profiles[window.pidx];
+  const alreadyVoted = voted.includes(fp + '_' + p.id);
+  const navPrev = window.pidx > 0, navNext = window.pidx < profiles.length - 1;
 
   el.innerHTML = `
     <div class="profile-nav">
       <button class="pnav-btn" onclick="changeProf(-1)" ${!navPrev?'disabled':''}>◀ السابق</button>
-      <span class="pnav-cnt">${pidx+1} / ${profiles.length}</span>
+      <span class="pnav-cnt">${window.pidx+1} / ${profiles.length}</span>
       <button class="pnav-btn" onclick="changeProf(1)"  ${!navNext?'disabled':''}>التالي ▶</button>
     </div>
 
@@ -807,7 +861,7 @@ function renderRatings() {
     <div class="crit-card">
       <div class="crit-head">📐 معايير التقييم المعماري</div>
 
-      ${CRITERIA.map((c,i) => `
+      ${window.CRITERIA.map((c,i) => `
         <div class="crit-row">
           <span class="crit-lbl">
             <span class="crit-num-badge">${i+1}.</span>${c.label}
@@ -834,7 +888,7 @@ function renderRatings() {
         <span class="total-lbl">المجموع الكلي</span>
         <div style="display:flex;align-items:baseline;gap:0.3rem">
           <span class="total-val" id="tVal">0</span>
-          <span class="total-of">/ ${MAX_TOTAL}</span>
+          <span class="total-of">/ ${window.MAX_TOTAL}</span>
         </div>
       </div>
     </div>
@@ -847,34 +901,34 @@ function renderRatings() {
   setupSwipe();
 }
 
-function onInp(key, raw) {
+window.onInp = function(key, raw) {
   let v = Math.max(0, Math.min(5, parseInt(raw)||0));
   const inp = document.getElementById('inp_'+key);
   if (inp) inp.value = v;
-  vals[key] = v;
+  window.vals[key] = v;
   refreshTotal();
 }
 
-function step(key, dir) {
+window.step = function(key, dir) {
   const inp = document.getElementById('inp_'+key);
   if (!inp || inp.disabled) return;
-  onInp(key, (vals[key]||0) + dir);
+  onInp(key, (window.vals[key]||0) + dir);
 }
 
-function refreshTotal() {
-  const t = CRITERIA.reduce((a,c) => a + (vals[c.key]||0), 0);
+window.refreshTotal = function() {
+  const t = window.CRITERIA.reduce((a,c) => a + (window.vals[c.key]||0), 0);
   const el = document.getElementById('tVal');
   if (el) el.textContent = t;
 }
 
-function goSlide(idx) {
-  curSlide = idx;
+window.goSlide = function(idx) {
+  window.curSlide = idx;
   const tr = document.getElementById('slTrack');
   if (tr) tr.style.transform = `translateX(${idx * 50}%)`;
   document.querySelectorAll('.sdot').forEach((d,i) => d.classList.toggle('on', i===idx));
 }
 
-function setupSwipe() {
+window.setupSwipe = function() {
   const wrap = document.getElementById('slWrap');
   if (!wrap) return;
   let sx = 0;
@@ -885,35 +939,36 @@ function setupSwipe() {
   }, {passive:true});
 }
 
-function changeProf(dir) { vals = {}; pidx += dir; renderRatings(); }
+window.changeProf = function(dir) { window.vals = {}; window.pidx += dir; renderRatings(); }
 
-function submitRating(profileId) {
-  const fp = getFP(), voted = getVoted(), vKey = fp+'_'+profileId;
+window.submitRating = async function(profileId) {
+  const fp = window.getFP(), voted = window.getVoted(), vKey = fp+'_'+profileId;
   if (voted.includes(vKey)) { showToast('لقد قيّمت هذا المشروع بالفعل'); return; }
 
-  const scores = {}, total = CRITERIA.reduce((a,c) => { const v=vals[c.key]||0; scores[c.key]=v; return a+v; }, 0);
-  const profiles = getData(), p = profiles.find(x => x.id===profileId);
+  const scores = {}, total = window.CRITERIA.reduce((a,c) => { const v=window.vals[c.key]||0; scores[c.key]=v; return a+v; }, 0);
+  const profiles = window.getData(), p = profiles.find(x => x.id===profileId);
   if (!p) return;
 
   if (!p.ratings) p.ratings = [];
   p.ratings.push({ scores, total, comment:(document.getElementById('commentBox')||{}).value||'', date:Date.now() });
 
-  saveData(profiles); voted.push(vKey); saveVoted(voted);
-  vals = {};
-  showToast('✅ تم إرسال تقييمك بنجاح!');
+  await window.saveData(profiles);
+  voted.push(vKey); window.saveVoted(voted);
+  window.vals = {};
+  showToast('✅ تم إرسال تقييمك بنجاح وحفظه!');
   setTimeout(renderRatings, 900);
 }
 
 // ══════════════════════
 // UPLOAD
 // ══════════════════════
-let photoData = {};
+window.photoData = {};
 
-function previewPhoto(input, prevId, iconId, hintId, num) {
+window.previewPhoto = function(input, prevId, iconId, hintId, num) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    photoData['photo'+num] = e.target.result;
+    window.photoData['photo'+num] = e.target.result;
     const img = document.getElementById(prevId);
     img.src = e.target.result; img.style.display = 'block';
     document.getElementById(iconId).style.display = 'none';
@@ -922,46 +977,47 @@ function previewPhoto(input, prevId, iconId, hintId, num) {
   reader.readAsDataURL(file);
 }
 
-function submitUpload() {
+window.submitUpload = async function() {
   const name = document.getElementById('uploaderName').value.trim();
   if (!name) { showToast('يرجى إدخال اسم المشروع'); return; }
 
-  const profiles = getData();
-  profiles.push({ id:'p_'+Date.now(), name, photo1:photoData.photo1||'', photo2:photoData.photo2||'', ratings:[], uploadDate:Date.now() });
-  saveData(profiles);
+  const profiles = window.getData();
+  profiles.push({ id:'p_'+Date.now(), name, photo1:window.photoData.photo1||'', photo2:window.photoData.photo2||'', ratings:[], uploadDate:Date.now() });
+  
+  await window.saveData(profiles);
 
   document.getElementById('uploaderName').value = '';
-  photoData = {};
+  window.photoData = {};
   ['prev1','prev2'].forEach(id => { const e=document.getElementById(id); e.style.display='none'; e.src=''; });
   ['icon1','icon2'].forEach(id => document.getElementById(id).style.display='');
   ['hint1','hint2'].forEach(id => document.getElementById(id).style.display='');
-  showToast('🎉 تم رفع المشروع بنجاح!');
+  showToast('🎉 تم رفع المشروع بنجاح على قاعدة البيانات!');
 }
 
 // ══════════════════════
 // LEADERBOARD
 // ══════════════════════
-function avgTotal(p) {
+window.avgTotal = function(p) {
   if (!p.ratings?.length) return 0;
   return p.ratings.reduce((a,r) => a+r.total, 0) / p.ratings.length;
 }
 
-function avgPerCrit(p) {
-  const sums = {}; CRITERIA.forEach(c => sums[c.key] = 0);
-  (p.ratings||[]).forEach(r => CRITERIA.forEach(c => sums[c.key] += (r.scores?.[c.key]||0)));
+window.avgPerCrit = function(p) {
+  const sums = {}; window.CRITERIA.forEach(c => sums[c.key] = 0);
+  (p.ratings||[]).forEach(r => window.CRITERIA.forEach(c => sums[c.key] += (r.scores?.[c.key]||0)));
   const n = p.ratings?.length || 1;
-  const avgs = {}; CRITERIA.forEach(c => avgs[c.key] = sums[c.key]/n);
+  const avgs = {}; window.CRITERIA.forEach(c => avgs[c.key] = sums[c.key]/n);
   return avgs;
 }
 
-function topCrit(p) {
-  const avgs = avgPerCrit(p); let best=null, bestV=-1;
-  CRITERIA.forEach(c => { if(avgs[c.key]>bestV){bestV=avgs[c.key];best=c;} });
+window.topCrit = function(p) {
+  const avgs = window.avgPerCrit(p); let best=null, bestV=-1;
+  window.CRITERIA.forEach(c => { if(avgs[c.key]>bestV){bestV=avgs[c.key];best=c;} });
   return best;
 }
 
-function renderTop3() {
-  const profiles = getData();
+window.renderTop3 = function() {
+  const profiles = window.getData();
   const el = document.getElementById('lbContent');
 
   if (!profiles.length) {
@@ -970,7 +1026,7 @@ function renderTop3() {
   }
 
   const sorted = [...profiles].sort((a,b) => {
-    const d = avgTotal(b) - avgTotal(a);
+    const d = window.avgTotal(b) - window.avgTotal(a);
     return d !== 0 ? d : (b.ratings?.length||0) - (a.ratings?.length||0);
   });
 
@@ -981,10 +1037,10 @@ function renderTop3() {
   // ── TOP 3 PODIUM ──
   const top3 = sorted.slice(0, 3);
   const podHtml = top3.map((p, i) => {
-    const avg   = avgTotal(p).toFixed(1);
-    const avgs  = avgPerCrit(p);
+    const avg   = window.avgTotal(p).toFixed(1);
+    const avgs  = window.avgPerCrit(p);
     const voters = p.ratings?.length || 0;
-    const badges = CRITERIA.slice(0,2).map(c =>
+    const badges = window.CRITERIA.slice(0,2).map(c =>
       `<span class="pod-bdg">${shortLabel(c.label)}: ${(avgs[c.key]||0).toFixed(1)}</span>`
     ).join('');
 
@@ -1001,7 +1057,7 @@ function renderTop3() {
           <div class="pod-name">${esc(p.name)}</div>
           <div class="pod-score">
             ⭐ ${avg}
-            <span class="pod-score-of">/ ${MAX_TOTAL}</span>
+            <span class="pod-score-of">/ ${window.MAX_TOTAL}</span>
           </div>
           <div class="pod-voters">عدد المقيّمين: ${voters}</div>
           <div class="pod-badges">${badges}</div>
@@ -1019,10 +1075,10 @@ function renderTop3() {
   if (rest.length) {
     const rows = rest.map((p, i) => {
       const rank  = i + 4;
-      const avg   = avgTotal(p).toFixed(1);
-      const avgs  = avgPerCrit(p);
+      const avg   = window.avgTotal(p).toFixed(1);
+      const avgs  = window.avgPerCrit(p);
       const voters = p.ratings?.length || 0;
-      const badges = CRITERIA.slice(0,3).map(c =>
+      const badges = window.CRITERIA.slice(0,3).map(c =>
         `<span class="lb-bdg">${shortLabel(c.label)}: ${(avgs[c.key]||0).toFixed(1)}</span>`
       ).join('');
 
@@ -1038,7 +1094,7 @@ function renderTop3() {
           <div class="lb-body">
             <div class="lb-name">${esc(p.name)}</div>
             <div class="lb-badges">${badges}</div>
-            <div class="lb-score">⭐ ${avg} <span style="font-size:0.72rem;color:var(--muted);font-weight:400">/ ${MAX_TOTAL}</span></div>
+            <div class="lb-score">⭐ ${avg} <span style="font-size:0.72rem;color:var(--muted);font-weight:400">/ ${window.MAX_TOTAL}</span></div>
             <div class="lb-voters">عدد المقيّمين: ${voters}</div>
           </div>
           <div class="lb-action">
@@ -1059,7 +1115,7 @@ function renderTop3() {
   el.innerHTML = `<div class="lb-podium">${podHtml}</div>${restHtml}`;
 }
 
-function shortLabel(lbl) {
+window.shortLabel = function(lbl) {
   const words = lbl.split(' ');
   return words.length > 2 ? words.slice(0,2).join(' ') + '…' : lbl;
 }
@@ -1067,8 +1123,8 @@ function shortLabel(lbl) {
 // ══════════════════════
 // MODAL
 // ══════════════════════
-function openModal(profileId) {
-  const p = getData().find(x => x.id===profileId);
+window.openModal = function(profileId) {
+  const p = window.getData().find(x => x.id===profileId);
   if (!p) return;
 
   document.getElementById('mTitle').textContent = p.name;
@@ -1077,15 +1133,15 @@ function openModal(profileId) {
   i1.src = p.photo1 || ''; i1.style.display = p.photo1 ? 'block' : 'none';
   i2.src = p.photo2 || ''; i2.style.display = p.photo2 ? 'block' : 'none';
 
-  const tc = topCrit(p);
-  const avgs = avgPerCrit(p);
+  const tc = window.topCrit(p);
+  const avgs = window.avgPerCrit(p);
   const voters = p.ratings?.length || 0;
 
   document.getElementById('mWinner').textContent =
     (tc && voters > 0) ? `التقييم الكلي: ${tc.label}` : 'لا يوجد تقييمات بعد';
 
   document.getElementById('mStats').innerHTML =
-    CRITERIA.map(c => `
+    window.CRITERIA.map(c => `
       <div class="ms-item">
         <div class="ms-name">${c.label}</div>
         <div class="ms-val">${(avgs[c.key]||0).toFixed(1)}</div>
@@ -1102,21 +1158,21 @@ function openModal(profileId) {
   document.body.style.overflow = 'hidden';
 }
 
-function closeModal() {
+window.closeModal = function() {
   document.getElementById('infoModal').classList.remove('open');
   document.body.style.overflow = '';
 }
 
-function modalOverlayClick(e) {
+window.modalOverlayClick = function(e) {
   if (e.target === document.getElementById('infoModal')) closeModal();
 }
 
 // ══════════════════════
 // UTILS
 // ══════════════════════
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+window.esc = function(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function showToast(msg) {
+window.showToast = function(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
