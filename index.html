@@ -329,7 +329,6 @@ nav {
   align-items: end;
 }
 
-/* 1st place card is taller */
 .pod-card {
   background: var(--card2); border: 1px solid var(--border2);
   border-radius: 18px; overflow: hidden;
@@ -343,7 +342,6 @@ nav {
   border-color: rgba(255,215,0,0.45);
   box-shadow: 0 0 36px rgba(255,215,0,0.1);
   grid-row: span 1;
-  /* make it visually taller */
   padding-bottom: 0.4rem;
 }
 .pod-card.pod-2 { border-color: rgba(192,192,192,0.3); }
@@ -600,7 +598,6 @@ nav {
 </head>
 <body>
 
-<!-- NAV -->
 <nav>
   <div class="nav-logo">🏛 نظام تقييم المشاريع المعمارية</div>
   <div class="nav-btns">
@@ -611,7 +608,6 @@ nav {
   </div>
 </nav>
 
-<!-- ═══ HERO ═══ -->
 <div id="startPage" class="page active">
   <div class="hero-eyebrow">منصة التقييم المعماري</div>
   <h1 class="hero-title">نظام تقييم المشاريع المعمارية</h1>
@@ -620,7 +616,6 @@ nav {
   <button class="hero-btn" onclick="showPage('ratings')">ابدأ التقييم الآن ✦</button>
 </div>
 
-<!-- ═══ RATINGS ═══ -->
 <div id="ratingsPage" class="page">
   <div class="page-inner" id="ratingAnchor">
     <div class="sec-hdr">
@@ -632,7 +627,6 @@ nav {
   </div>
 </div>
 
-<!-- ═══ UPLOAD ═══ -->
 <div id="uploadPage" class="page">
   <div class="page-inner">
     <div class="sec-hdr">
@@ -667,7 +661,6 @@ nav {
   </div>
 </div>
 
-<!-- ═══ TOP / LEADERBOARD ═══ -->
 <div id="top3Page" class="page">
   <div class="page-inner">
     <div class="sec-hdr">
@@ -679,7 +672,6 @@ nav {
   </div>
 </div>
 
-<!-- ═══ MODAL ═══ -->
 <div class="modal-ov" id="infoModal" onclick="modalOverlayClick(event)">
   <div class="modal-box" id="modalBox">
     <div class="modal-hdr">
@@ -708,10 +700,25 @@ nav {
 
 <div class="toast" id="toast"></div>
 
-<script>
-// ══════════════════════
-// CONSTANTS
-// ══════════════════════
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+// 1. إعداد فايربيز باستخدام المفاتيح بتاعتك
+const firebaseConfig = {
+  apiKey: "AIzaSyCVIK2KZONTmYAOfu-GtuyCATHahpiyx9E",
+  authDomain: "dahab-voting.firebaseapp.com",
+  projectId: "dahab-voting",
+  storageBucket: "dahab-voting.firebasestorage.app",
+  messagingSenderId: "920314965726",
+  appId: "1:920314965726:web:23bc5b612f1c7c17805c4f",
+  measurementId: "G-C8VST7XK5D"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// المتغيرات العامة للكود
 const CRITERIA = [
   { key:'dahab',   label:'التعبير عن هوية دهب' },
   { key:'gaudi',   label:'استلهام من الطبيعة وفلسفة جاودي' },
@@ -722,14 +729,27 @@ const CRITERIA = [
 ];
 const MAX_TOTAL = CRITERIA.length * 5; // 30
 
-// ══════════════════════
-// DATA
-// ══════════════════════
-const getData   = () => JSON.parse(localStorage.getItem('arch2_profiles') || '[]');
-const saveData  = d  => localStorage.setItem('arch2_profiles', JSON.stringify(d));
+window.archProfiles = []; // دي الميموري اللي هتشيل البيانات من فايربيز
+let pidx = 0, curSlide = 0, vals = {};
+let photoData = {}; // لحفظ الصور وقت الرفع
+
+// 2. دالة جلب البيانات من الداتا بيز الحقيقية
+async function fetchProjects() {
+  try {
+    const querySnapshot = await getDocs(collection(db, "projects"));
+    const data = [];
+    querySnapshot.forEach((doc) => {
+      data.push({ id: doc.id, ...doc.data() });
+    });
+    window.archProfiles = data;
+  } catch (e) {
+    console.error("Error fetching: ", e);
+  }
+}
+
+// 3. بنسيب دي في الـ Local Storage عشان نعرف مين قيّم ومين لأ من نفس المتصفح
 const getVoted  = () => JSON.parse(localStorage.getItem('arch2_voted') || '[]');
 const saveVoted = v  => localStorage.setItem('arch2_voted', JSON.stringify(v));
-
 function getFP() {
   let fp = localStorage.getItem('arch2_fp');
   if (!fp) { fp = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('arch2_fp', fp); }
@@ -737,36 +757,43 @@ function getFP() {
 }
 
 // ══════════════════════
-// NAVIGATION
+// الملاحة والتنقل
 // ══════════════════════
-function showPage(page) {
+window.showPage = async function(page) {
   const ids = ['startPage','ratingsPage','uploadPage','top3Page'];
   ids.forEach(id => { const e = document.getElementById(id); e.classList.remove('active'); e.style.display = 'none'; });
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-  const map = { start:[0,'startPage',null], ratings:[1,'ratingsPage',renderRatings], upload:[2,'uploadPage',null], top3:[3,'top3Page',renderTop3] };
+  const map = { start:[0,'startPage',null], ratings:[1,'ratingsPage',window.renderRatings], upload:[2,'uploadPage',null], top3:[3,'top3Page',window.renderTop3] };
   const [idx, elId, fn] = map[page] || map.start;
 
   const el = document.getElementById(elId);
   el.style.display = page === 'start' ? 'flex' : 'block';
   el.classList.add('active');
   document.querySelectorAll('.nav-btn')[idx].classList.add('active');
-  if (fn) fn();
+
+  if (fn) {
+     if (page === 'ratings' || page === 'top3') {
+         if(window.archProfiles.length === 0) {
+             window.showToast('جاري تحميل المشاريع...');
+             await fetchProjects(); // لو الصفحة فاضية، هات الداتا الأول من فايربيز
+         }
+     }
+     fn();
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ══════════════════════
-// RATINGS
+// التقييم (Rating)
 // ══════════════════════
-let pidx = 0, curSlide = 0, vals = {};
-
-function renderRatings() {
-  const profiles = getData();
+window.renderRatings = function() {
+  const profiles = window.archProfiles;
   const el = document.getElementById('ratingsContent');
   const fp = getFP(), voted = getVoted();
 
   if (!profiles.length) {
-    el.innerHTML = `<div class="empty"><div class="ei">🏗️</div><div>لا توجد مشاريع — ارفع أول مشروع!</div></div>`;
+    el.innerHTML = `<div class="empty"><div class="ei">🏗️</div><div>لا توجد مشاريع مسجلة في قاعدة البيانات بعد!</div></div>`;
     return;
   }
 
@@ -784,7 +811,7 @@ function renderRatings() {
       <button class="pnav-btn" onclick="changeProf(1)"  ${!navNext?'disabled':''}>التالي ▶</button>
     </div>
 
-    <div class="prof-name">${esc(p.name)}</div>
+    <div class="prof-name">${window.esc(p.name)}</div>
     <div class="prof-meta">${(p.ratings||[]).length} مقيّم حتى الآن</div>
 
     <div class="sl-wrap" id="slWrap">
@@ -845,75 +872,89 @@ function renderRatings() {
 
     ${alreadyVoted
       ? `<button class="sub-btn" disabled>✅ لقد قيّمت هذا المشروع بالفعل</button>`
-      : `<button class="sub-btn" onclick="submitRating('${p.id}')">إرسال التقييم ✦</button>`}
+      : `<button class="sub-btn" onclick="submitRating('${p.id}')">إرسال التقييم لفايربيز ✦</button>`}
   `;
 
-  setupSwipe();
+  window.setupSwipe();
 }
 
-function onInp(key, raw) {
+window.onInp = function(key, raw) {
   let v = Math.max(0, Math.min(5, parseInt(raw)||0));
   const inp = document.getElementById('inp_'+key);
   if (inp) inp.value = v;
   vals[key] = v;
-  refreshTotal();
+  window.refreshTotal();
 }
 
-function step(key, dir) {
+window.step = function(key, dir) {
   const inp = document.getElementById('inp_'+key);
   if (!inp || inp.disabled) return;
-  onInp(key, (vals[key]||0) + dir);
+  window.onInp(key, (vals[key]||0) + dir);
 }
 
-function refreshTotal() {
+window.refreshTotal = function() {
   const t = CRITERIA.reduce((a,c) => a + (vals[c.key]||0), 0);
   const el = document.getElementById('tVal');
   if (el) el.textContent = t;
 }
 
-function goSlide(idx) {
+window.goSlide = function(idx) {
   curSlide = idx;
   const tr = document.getElementById('slTrack');
   if (tr) tr.style.transform = `translateX(${idx * 50}%)`;
   document.querySelectorAll('.sdot').forEach((d,i) => d.classList.toggle('on', i===idx));
 }
 
-function setupSwipe() {
+window.setupSwipe = function() {
   const wrap = document.getElementById('slWrap');
   if (!wrap) return;
   let sx = 0;
   wrap.addEventListener('touchstart', e => sx = e.touches[0].clientX, {passive:true});
   wrap.addEventListener('touchend',   e => {
     const d = sx - e.changedTouches[0].clientX;
-    if (Math.abs(d) > 40) goSlide(d > 0 ? 1 : 0);
+    if (Math.abs(d) > 40) window.goSlide(d > 0 ? 1 : 0);
   }, {passive:true});
 }
 
-function changeProf(dir) { vals = {}; pidx += dir; renderRatings(); }
+window.changeProf = function(dir) { vals = {}; pidx += dir; window.renderRatings(); }
 
-function submitRating(profileId) {
+// 4. دالة إرسال التقييم لفايربيز مباشرة
+window.submitRating = async function(profileId) {
   const fp = getFP(), voted = getVoted(), vKey = fp+'_'+profileId;
-  if (voted.includes(vKey)) { showToast('لقد قيّمت هذا المشروع بالفعل'); return; }
+  if (voted.includes(vKey)) { window.showToast('لقد قيّمت هذا المشروع بالفعل'); return; }
 
   const scores = {}, total = CRITERIA.reduce((a,c) => { const v=vals[c.key]||0; scores[c.key]=v; return a+v; }, 0);
-  const profiles = getData(), p = profiles.find(x => x.id===profileId);
-  if (!p) return;
+  
+  const pIndex = window.archProfiles.findIndex(x => x.id === profileId);
+  if (pIndex === -1) return;
+  const p = window.archProfiles[pIndex];
 
-  if (!p.ratings) p.ratings = [];
-  p.ratings.push({ scores, total, comment:(document.getElementById('commentBox')||{}).value||'', date:Date.now() });
+  const newRating = { scores, total, comment:(document.getElementById('commentBox')||{}).value||'', date:Date.now() };
+  const updatedRatings = p.ratings ? [...p.ratings, newRating] : [newRating];
 
-  saveData(profiles); voted.push(vKey); saveVoted(voted);
-  vals = {};
-  showToast('✅ تم إرسال تقييمك بنجاح!');
-  setTimeout(renderRatings, 900);
+  window.showToast('جاري تسجيل التقييم في فايربيز...');
+
+  try {
+    const projectRef = doc(db, "projects", profileId);
+    await updateDoc(projectRef, { ratings: updatedRatings });
+
+    p.ratings = updatedRatings;
+    window.archProfiles[pIndex] = p;
+
+    voted.push(vKey); saveVoted(voted);
+    vals = {};
+    window.showToast('✅ تم إرسال تقييمك بنجاح وحفظه في السيرفر!');
+    setTimeout(window.renderRatings, 900);
+  } catch(e) {
+    console.error("Error updating: ", e);
+    window.showToast('حدث خطأ أثناء الإرسال لفايربيز!');
+  }
 }
 
 // ══════════════════════
-// UPLOAD
+// رفع المشروعات لفايربيز (Upload)
 // ══════════════════════
-let photoData = {};
-
-function previewPhoto(input, prevId, iconId, hintId, num) {
+window.previewPhoto = function(input, prevId, iconId, hintId, num) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
@@ -926,31 +967,46 @@ function previewPhoto(input, prevId, iconId, hintId, num) {
   reader.readAsDataURL(file);
 }
 
-function submitUpload() {
+// 5. دالة إضافة مشروع جديد لفايربيز
+window.submitUpload = async function() {
   const name = document.getElementById('uploaderName').value.trim();
-  if (!name) { showToast('يرجى إدخال اسم المشروع'); return; }
+  if (!name) { window.showToast('يرجى إدخال اسم المشروع'); return; }
 
-  const profiles = getData();
-  profiles.push({ id:'p_'+Date.now(), name, photo1:photoData.photo1||'', photo2:photoData.photo2||'', ratings:[], uploadDate:Date.now() });
-  saveData(profiles);
+  const newProject = {
+    name,
+    photo1: photoData.photo1||'',
+    photo2: photoData.photo2||'',
+    ratings: [],
+    uploadDate: Date.now()
+  };
 
-  document.getElementById('uploaderName').value = '';
-  photoData = {};
-  ['prev1','prev2'].forEach(id => { const e=document.getElementById(id); e.style.display='none'; e.src=''; });
-  ['icon1','icon2'].forEach(id => document.getElementById(id).style.display='');
-  ['hint1','hint2'].forEach(id => document.getElementById(id).style.display='');
-  showToast('🎉 تم رفع المشروع بنجاح!');
+  window.showToast('جاري الرفع على سيرفر فايربيز، يرجى الانتظار...');
+
+  try {
+    const docRef = await addDoc(collection(db, "projects"), newProject);
+    window.archProfiles.push({ id: docRef.id, ...newProject });
+
+    document.getElementById('uploaderName').value = '';
+    photoData = {};
+    ['prev1','prev2'].forEach(id => { const e=document.getElementById(id); e.style.display='none'; e.src=''; });
+    ['icon1','icon2'].forEach(id => document.getElementById(id).style.display='');
+    ['hint1','hint2'].forEach(id => document.getElementById(id).style.display='');
+    window.showToast('🎉 تم رفع المشروع لفايربيز بنجاح!');
+  } catch(e) {
+     console.error(e);
+     window.showToast('حدث خطأ أثناء الرفع!');
+  }
 }
 
 // ══════════════════════
-// LEADERBOARD
+// الترتيب والتوب ليست (Leaderboard)
 // ══════════════════════
-function avgTotal(p) {
+window.avgTotal = function(p) {
   if (!p.ratings?.length) return 0;
   return p.ratings.reduce((a,r) => a+r.total, 0) / p.ratings.length;
 }
 
-function avgPerCrit(p) {
+window.avgPerCrit = function(p) {
   const sums = {}; CRITERIA.forEach(c => sums[c.key] = 0);
   (p.ratings||[]).forEach(r => CRITERIA.forEach(c => sums[c.key] += (r.scores?.[c.key]||0)));
   const n = p.ratings?.length || 1;
@@ -958,14 +1014,14 @@ function avgPerCrit(p) {
   return avgs;
 }
 
-function topCrit(p) {
-  const avgs = avgPerCrit(p); let best=null, bestV=-1;
+window.topCrit = function(p) {
+  const avgs = window.avgPerCrit(p); let best=null, bestV=-1;
   CRITERIA.forEach(c => { if(avgs[c.key]>bestV){bestV=avgs[c.key];best=c;} });
   return best;
 }
 
-function renderTop3() {
-  const profiles = getData();
+window.renderTop3 = function() {
+  const profiles = window.archProfiles;
   const el = document.getElementById('lbContent');
 
   if (!profiles.length) {
@@ -974,7 +1030,7 @@ function renderTop3() {
   }
 
   const sorted = [...profiles].sort((a,b) => {
-    const d = avgTotal(b) - avgTotal(a);
+    const d = window.avgTotal(b) - window.avgTotal(a);
     return d !== 0 ? d : (b.ratings?.length||0) - (a.ratings?.length||0);
   });
 
@@ -985,11 +1041,11 @@ function renderTop3() {
   // ── TOP 3 PODIUM ──
   const top3 = sorted.slice(0, 3);
   const podHtml = top3.map((p, i) => {
-    const avg   = avgTotal(p).toFixed(1);
-    const avgs  = avgPerCrit(p);
+    const avg   = window.avgTotal(p).toFixed(1);
+    const avgs  = window.avgPerCrit(p);
     const voters = p.ratings?.length || 0;
     const badges = CRITERIA.slice(0,2).map(c =>
-      `<span class="pod-bdg">${shortLabel(c.label)}: ${(avgs[c.key]||0).toFixed(1)}</span>`
+      `<span class="pod-bdg">${window.shortLabel(c.label)}: ${(avgs[c.key]||0).toFixed(1)}</span>`
     ).join('');
 
     return `
@@ -1002,7 +1058,7 @@ function renderTop3() {
         </div>
         <div class="pod-info">
           <div class="pod-rank-label">${rkLabels[i]}</div>
-          <div class="pod-name">${esc(p.name)}</div>
+          <div class="pod-name">${window.esc(p.name)}</div>
           <div class="pod-score">
             ⭐ ${avg}
             <span class="pod-score-of">/ ${MAX_TOTAL}</span>
@@ -1023,11 +1079,11 @@ function renderTop3() {
   if (rest.length) {
     const rows = rest.map((p, i) => {
       const rank  = i + 4;
-      const avg   = avgTotal(p).toFixed(1);
-      const avgs  = avgPerCrit(p);
+      const avg   = window.avgTotal(p).toFixed(1);
+      const avgs  = window.avgPerCrit(p);
       const voters = p.ratings?.length || 0;
       const badges = CRITERIA.slice(0,3).map(c =>
-        `<span class="lb-bdg">${shortLabel(c.label)}: ${(avgs[c.key]||0).toFixed(1)}</span>`
+        `<span class="lb-bdg">${window.shortLabel(c.label)}: ${(avgs[c.key]||0).toFixed(1)}</span>`
       ).join('');
 
       return `
@@ -1040,7 +1096,7 @@ function renderTop3() {
             ${p.photo2 ? `<img src="${p.photo2}" alt="">` : `<div class="no-thumb">🏛️</div>`}
           </div>
           <div class="lb-body">
-            <div class="lb-name">${esc(p.name)}</div>
+            <div class="lb-name">${window.esc(p.name)}</div>
             <div class="lb-badges">${badges}</div>
             <div class="lb-score">⭐ ${avg} <span style="font-size:0.72rem;color:var(--muted);font-weight:400">/ ${MAX_TOTAL}</span></div>
             <div class="lb-voters">عدد المقيّمين: ${voters}</div>
@@ -1063,16 +1119,16 @@ function renderTop3() {
   el.innerHTML = `<div class="lb-podium">${podHtml}</div>${restHtml}`;
 }
 
-function shortLabel(lbl) {
+window.shortLabel = function(lbl) {
   const words = lbl.split(' ');
   return words.length > 2 ? words.slice(0,2).join(' ') + '…' : lbl;
 }
 
 // ══════════════════════
-// MODAL
+// المودال (النافذة المنبثقة)
 // ══════════════════════
-function openModal(profileId) {
-  const p = getData().find(x => x.id===profileId);
+window.openModal = function(profileId) {
+  const p = window.archProfiles.find(x => x.id===profileId);
   if (!p) return;
 
   document.getElementById('mTitle').textContent = p.name;
@@ -1081,8 +1137,8 @@ function openModal(profileId) {
   i1.src = p.photo1 || ''; i1.style.display = p.photo1 ? 'block' : 'none';
   i2.src = p.photo2 || ''; i2.style.display = p.photo2 ? 'block' : 'none';
 
-  const tc = topCrit(p);
-  const avgs = avgPerCrit(p);
+  const tc = window.topCrit(p);
+  const avgs = window.avgPerCrit(p);
   const voters = p.ratings?.length || 0;
 
   document.getElementById('mWinner').textContent =
@@ -1106,28 +1162,29 @@ function openModal(profileId) {
   document.body.style.overflow = 'hidden';
 }
 
-function closeModal() {
+window.closeModal = function() {
   document.getElementById('infoModal').classList.remove('open');
   document.body.style.overflow = '';
 }
 
-function modalOverlayClick(e) {
-  if (e.target === document.getElementById('infoModal')) closeModal();
+window.modalOverlayClick = function(e) {
+  if (e.target === document.getElementById('infoModal')) window.closeModal();
 }
 
 // ══════════════════════
-// UTILS
+// المساعدات والرسائل
 // ══════════════════════
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+window.esc = function(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function showToast(msg) {
+window.showToast = function(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-// init
+// تشغيل الواجهة وجلب البيانات في الخلفية
 document.getElementById('startPage').style.display = 'flex';
+fetchProjects();
 </script>
 </body>
 </html>
