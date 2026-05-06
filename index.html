@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>نظام تقييم المشاريع المعمارية</title>
+<link rel="icon" type="image/png" href="icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -44,13 +45,18 @@ body::before {
 }
 
 /* ─── NAV ─── */
-nav {
-  position: sticky; top: 0; z-index: 200;
-  background: rgba(10,10,15,0.97);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 1.8rem; height: 64px;
+<nav> {
+  <div class="nav-logo">
+    <img src="logo.png" alt="لوجو التقييم" style="width: 28px; height: 28px; vertical-align: middle; margin-left: 8px; border-radius: 50%;">
+    نظام تقييم المشاريع المعمارية
+  </div>
+  <div class="nav-btns">
+    <button class="nav-btn active" onclick="showPage('start')">الرئيسية</button>
+    <button class="nav-btn" onclick="showPage('ratings')">التقييم</button>
+    <button class="nav-btn" onclick="showPage('upload')">رفع مشروع</button>
+    <button class="nav-btn" onclick="showPage('top3')">الترتيب</button>
+  </div>
+</nav>
 }
 
 .nav-logo {
