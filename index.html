@@ -202,7 +202,36 @@ nav {
 .sdot { width:8px; height:8px; border-radius:50%; background:var(--border2); cursor:pointer; transition:background 0.2s; }
 .sdot.on { background:var(--gold); }
 
-/* ─── CRITERIA CARD ─── */
+/* ─── CONCEPT BOX (التلخيص) ─── */
+.concept-box {
+  background: rgba(201,168,76,0.05);
+  border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  margin-top: 1.5rem;
+}
+.concept-title {
+  color: var(--gold-light);
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  display: flex; align-items: center; gap: 5px;
+}
+.concept-text {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  max-height: 4.8em; /* تقريباً 3 سطور */
+  overflow-y: auto;
+  padding-left: 8px;
+  white-space: pre-line;
+}
+/* سكرول بار شيك لصندوق التلخيص */
+.concept-text::-webkit-scrollbar { width: 5px; }
+.concept-text::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 4px; }
+.concept-text::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ─── STAR RATING (النجوم) ─── */
 .crit-card {
   margin-top:1.8rem; background:var(--card);
   border:1px solid var(--border2); border-radius:16px; overflow:hidden;
@@ -225,30 +254,24 @@ nav {
 .crit-lbl { font-size:0.94rem; font-weight:600; flex:1; }
 .crit-num-badge { font-size:0.75rem; color:var(--muted); margin-left:0.35rem; }
 
-.num-wrap { display:flex; align-items:center; gap:0.45rem; }
-
-.num-inp {
-  width:68px; padding:0.42rem 0.6rem;
-  background:var(--dark3); border:1px solid var(--border2);
-  border-radius:8px; color:var(--text);
-  font-family:'Cairo',sans-serif; font-size:1rem; font-weight:700;
-  text-align:center; outline:none; transition:border-color 0.2s;
-  -moz-appearance:textfield;
+.star-wrap { 
+  display: flex; 
+  gap: 6px; 
 }
-.num-inp::-webkit-outer-spin-button,
-.num-inp::-webkit-inner-spin-button { -webkit-appearance:none; }
-.num-inp:focus { border-color:var(--gold); }
-.num-inp:disabled { opacity:0.5; }
-
-.steppers { display:flex; flex-direction:column; gap:2px; }
-.step-btn {
-  width:22px; height:18px; background:var(--dark3);
-  border:1px solid var(--border2); color:var(--muted);
-  border-radius:4px; cursor:pointer; font-size:0.68rem;
-  display:flex; align-items:center; justify-content:center;
-  transition:all 0.15s; font-weight:800; line-height:1;
+.star { 
+  font-size: 1.8rem; 
+  color: var(--border2); 
+  cursor: pointer; 
+  transition: color 0.2s, transform 0.2s; 
+  user-select: none; 
 }
-.step-btn:hover { border-color:var(--gold); color:var(--gold); }
+.star.active { 
+  color: var(--gold); 
+  text-shadow: 0 0 8px rgba(201,168,76,0.4); 
+}
+.star:hover { transform: scale(1.15); }
+.star-wrap.disabled .star { cursor: not-allowed; opacity: 0.5; }
+.star-wrap.disabled .star:hover { transform: none; }
 
 /* comment */
 .comm-wrap { padding:1rem 1.5rem; border-top:1px solid var(--border); }
@@ -643,6 +666,12 @@ nav {
         <label class="form-lbl">اسم المشروع</label>
         <input class="form-inp" id="uploaderName" type="text" placeholder="أدخل اسم المشروع الكامل">
       </div>
+      
+      <div class="form-grp">
+        <label class="form-lbl">فكرة التصميم (مُلخص)</label>
+        <textarea class="form-inp" id="uploaderConcept" placeholder="اكتب أو انسخ ملخص فكرة التصميم بالذكاء الاصطناعي هنا في هيئة نقاط قصيرة..." style="height: 100px; resize: none;"></textarea>
+      </div>
+
       <div class="form-grp">
         <label class="form-lbl">صور المشروع</label>
         <div class="photo-grid">
@@ -742,7 +771,6 @@ window.MAX_TOTAL = window.CRITERIA.length * 5; // 30
 // ══════════════════════
 let cachedProfiles = [];
 
-// دالة لجلب المشاريع من قاعدة البيانات
 async function fetchProfiles() {
   try {
     const querySnapshot = await getDocs(collection(db, "projects"));
@@ -751,7 +779,6 @@ async function fetchProfiles() {
       cachedProfiles.push(doc.data());
     });
     
-    // تحديث الواجهة لو فاتح صفحة التقييم أو الترتيب
     if(document.getElementById('ratingsPage').classList.contains('active')) renderRatings();
     if(document.getElementById('top3Page').classList.contains('active')) renderTop3();
   } catch (e) {
@@ -759,7 +786,6 @@ async function fetchProfiles() {
   }
 }
 
-// تشغيل الجلب أول ما الموقع يفتح
 fetchProfiles();
 
 window.getData = () => cachedProfiles;
@@ -767,7 +793,6 @@ window.getData = () => cachedProfiles;
 window.saveData = async (d) => {
   cachedProfiles = d;
   try {
-    // تحديث كل المشاريع في فايربيز
     for (const p of d) {
       await setDoc(doc(db, "projects", p.id), p);
     }
@@ -806,7 +831,7 @@ window.showPage = function(page) {
 }
 
 // ══════════════════════
-// RATINGS
+// RATINGS (WITH STARS & CONCEPT)
 // ══════════════════════
 window.pidx = 0; window.curSlide = 0; window.vals = {};
 
@@ -858,6 +883,13 @@ window.renderRatings = function() {
       <div class="sdot"    onclick="goSlide(1)"></div>
     </div>
 
+    ${p.concept ? `
+    <div class="concept-box">
+      <div class="concept-title">💡 فكرة التصميم (الكونسبت):</div>
+      <div class="concept-text">${esc(p.concept)}</div>
+    </div>
+    ` : ''}
+
     <div class="crit-card">
       <div class="crit-head">📐 معايير التقييم المعماري</div>
 
@@ -866,15 +898,10 @@ window.renderRatings = function() {
           <span class="crit-lbl">
             <span class="crit-num-badge">${i+1}.</span>${c.label}
           </span>
-          <div class="num-wrap">
-            <div class="steppers">
-              <button class="step-btn" onclick="step('${c.key}',1)">▲</button>
-              <button class="step-btn" onclick="step('${c.key}',-1)">▼</button>
-            </div>
-            <input class="num-inp" id="inp_${c.key}" type="number"
-              min="0" max="5" value="0"
-              oninput="onInp('${c.key}',this.value)"
-              ${alreadyVoted?'disabled':''}>
+          <div class="star-wrap ${alreadyVoted ? 'disabled' : ''}" id="stars_${c.key}">
+            ${[1, 2, 3, 4, 5].map(v => `
+              <span class="star" onclick="setStar('${c.key}', ${v})">★</span>
+            `).join('')}
           </div>
         </div>
       `).join('')}
@@ -901,18 +928,22 @@ window.renderRatings = function() {
   setupSwipe();
 }
 
-window.onInp = function(key, raw) {
-  let v = Math.max(0, Math.min(5, parseInt(raw)||0));
-  const inp = document.getElementById('inp_'+key);
-  if (inp) inp.value = v;
-  window.vals[key] = v;
+window.setStar = function(key, val) {
+  const wrap = document.getElementById('stars_' + key);
+  if (!wrap || wrap.classList.contains('disabled')) return;
+  
+  window.vals[key] = val;
+  const stars = wrap.querySelectorAll('.star');
+  
+  stars.forEach((s, index) => {
+    if (index < val) {
+      s.classList.add('active');
+    } else {
+      s.classList.remove('active');
+    }
+  });
+  
   refreshTotal();
-}
-
-window.step = function(key, dir) {
-  const inp = document.getElementById('inp_'+key);
-  if (!inp || inp.disabled) return;
-  onInp(key, (window.vals[key]||0) + dir);
 }
 
 window.refreshTotal = function() {
@@ -945,7 +976,16 @@ window.submitRating = async function(profileId) {
   const fp = window.getFP(), voted = window.getVoted(), vKey = fp+'_'+profileId;
   if (voted.includes(vKey)) { showToast('لقد قيّمت هذا المشروع بالفعل'); return; }
 
-  const scores = {}, total = window.CRITERIA.reduce((a,c) => { const v=window.vals[c.key]||0; scores[c.key]=v; return a+v; }, 0);
+  // التأكد من أن المستخدم قيم جميع الخانات
+  const total = window.CRITERIA.reduce((a,c) => a + (window.vals[c.key]||0), 0);
+  if(total === 0) {
+      showToast('يرجى تقييم معيار واحد على الأقل بالنقر على النجوم');
+      return;
+  }
+
+  const scores = {};
+  window.CRITERIA.forEach(c => scores[c.key] = window.vals[c.key] || 0);
+
   const profiles = window.getData(), p = profiles.find(x => x.id===profileId);
   if (!p) return;
 
@@ -979,14 +1019,25 @@ window.previewPhoto = function(input, prevId, iconId, hintId, num) {
 
 window.submitUpload = async function() {
   const name = document.getElementById('uploaderName').value.trim();
+  const concept = document.getElementById('uploaderConcept').value.trim();
+  
   if (!name) { showToast('يرجى إدخال اسم المشروع'); return; }
 
   const profiles = window.getData();
-  profiles.push({ id:'p_'+Date.now(), name, photo1:window.photoData.photo1||'', photo2:window.photoData.photo2||'', ratings:[], uploadDate:Date.now() });
+  profiles.push({ 
+    id:'p_'+Date.now(), 
+    name, 
+    concept, 
+    photo1:window.photoData.photo1||'', 
+    photo2:window.photoData.photo2||'', 
+    ratings:[], 
+    uploadDate:Date.now() 
+  });
   
   await window.saveData(profiles);
 
   document.getElementById('uploaderName').value = '';
+  document.getElementById('uploaderConcept').value = '';
   window.photoData = {};
   ['prev1','prev2'].forEach(id => { const e=document.getElementById(id); e.style.display='none'; e.src=''; });
   ['icon1','icon2'].forEach(id => document.getElementById(id).style.display='');
