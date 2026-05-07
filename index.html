@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>نظام تقييم المشاريع المعمارية</title>
 <link rel="icon" type="image/png" href="icon.png">
+<link rel="shortcut icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -221,12 +223,11 @@ nav {
   color: var(--text);
   font-size: 0.9rem;
   line-height: 1.6;
-  max-height: 4.8em; /* تقريباً 3 سطور */
+  max-height: 4.8em;
   overflow-y: auto;
   padding-left: 8px;
   white-space: pre-line;
 }
-/* سكرول بار شيك لصندوق التلخيص */
 .concept-text::-webkit-scrollbar { width: 5px; }
 .concept-text::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 4px; }
 .concept-text::-webkit-scrollbar-thumb:hover { background: var(--gold); }
@@ -342,7 +343,8 @@ nav {
   font-family:'Cairo',sans-serif; font-size:1rem; font-weight:800;
   cursor:pointer; transition:opacity 0.2s;
 }
-.up-btn:hover { opacity:0.9; }
+.up-btn:hover:not(:disabled) { opacity:0.9; }
+.up-btn:disabled { opacity:0.5; cursor:not-allowed; }
 
 /* ─── LEADERBOARD TOP 3 PODIUM ─── */
 .lb-podium {
@@ -738,7 +740,7 @@ nav {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
 import { getFirestore, collection, getDocs, setDoc, doc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-// ====== إعدادات فايربيز (المفاتيح بتاعتك) ======
+// ====== إعدادات فايربيز ======
 const firebaseConfig = {
   apiKey: "AIzaSyCVIK2KZONTmYAOfu-GtuyCATHahpiyx9E",
   authDomain: "dahab-voting.firebaseapp.com",
@@ -789,18 +791,6 @@ async function fetchProfiles() {
 fetchProfiles();
 
 window.getData = () => cachedProfiles;
-
-window.saveData = async (d) => {
-  cachedProfiles = d;
-  try {
-    for (const p of d) {
-      await setDoc(doc(db, "projects", p.id), p);
-    }
-  } catch (e) {
-    console.error("Error saving document: ", e);
-    showToast("مشكلة في الاتصال بقاعدة البيانات");
-  }
-};
 
 window.getVoted  = () => JSON.parse(localStorage.getItem('arch2_voted') || '[]');
 window.saveVoted = v  => localStorage.setItem('arch2_voted', JSON.stringify(v));
@@ -976,27 +966,41 @@ window.submitRating = async function(profileId) {
   const fp = window.getFP(), voted = window.getVoted(), vKey = fp+'_'+profileId;
   if (voted.includes(vKey)) { showToast('لقد قيّمت هذا المشروع بالفعل'); return; }
 
-  // التأكد من أن المستخدم قيم جميع الخانات
   const total = window.CRITERIA.reduce((a,c) => a + (window.vals[c.key]||0), 0);
   if(total === 0) {
       showToast('يرجى تقييم معيار واحد على الأقل بالنقر على النجوم');
       return;
   }
 
+  // قفل الزرار عشان مفيش دبل كليك
+  const btn = document.querySelector('.sub-btn');
+  if(btn) { btn.disabled = true; btn.textContent = 'جاري الإرسال... ⏳'; }
+
   const scores = {};
   window.CRITERIA.forEach(c => scores[c.key] = window.vals[c.key] || 0);
 
   const profiles = window.getData(), p = profiles.find(x => x.id===profileId);
-  if (!p) return;
+  if (!p) {
+     if(btn) { btn.disabled = false; btn.textContent = 'إرسال التقييم ✦'; }
+     return;
+  }
 
   if (!p.ratings) p.ratings = [];
   p.ratings.push({ scores, total, comment:(document.getElementById('commentBox')||{}).value||'', date:Date.now() });
 
-  await window.saveData(profiles);
-  voted.push(vKey); window.saveVoted(voted);
-  window.vals = {};
-  showToast('✅ تم إرسال تقييمك بنجاح وحفظه!');
-  setTimeout(renderRatings, 900);
+  try {
+    // 💡 التعديل هنا: تحديث المشروع ده بس في قاعدة البيانات بدل الرفع الجماعي
+    await setDoc(doc(db, "projects", p.id), p);
+    
+    voted.push(vKey); window.saveVoted(voted);
+    window.vals = {};
+    showToast('✅ تم إرسال تقييمك بنجاح وحفظه!');
+    setTimeout(renderRatings, 900);
+  } catch(e) {
+    console.error("Error saving rating: ", e);
+    showToast("حصلت مشكلة في الإرسال، تأكد من الإنترنت.");
+    if(btn) { btn.disabled = false; btn.textContent = 'إرسال التقييم ✦'; }
+  }
 }
 
 // ══════════════════════
@@ -1023,8 +1027,12 @@ window.submitUpload = async function() {
   
   if (!name) { showToast('يرجى إدخال اسم المشروع'); return; }
 
-  const profiles = window.getData();
-  profiles.push({ 
+  // قفل الزرار عشان نمنع التكرار
+  const btn = document.querySelector('.up-btn');
+  btn.disabled = true;
+  btn.textContent = 'جاري الرفع... ⏳ يرجى الانتظار';
+
+  const newProj = { 
     id:'p_'+Date.now(), 
     name, 
     concept, 
@@ -1032,17 +1040,30 @@ window.submitUpload = async function() {
     photo2:window.photoData.photo2||'', 
     ratings:[], 
     uploadDate:Date.now() 
-  });
+  };
   
-  await window.saveData(profiles);
+  try {
+    // 💡 التعديل هنا: رفع المشروع ده بس لفايربيز
+    await setDoc(doc(db, "projects", newProj.id), newProj);
+    
+    // إضافته للذاكرة المحلية عشان يظهر للمستخدم فوراً
+    cachedProfiles.push(newProj);
 
-  document.getElementById('uploaderName').value = '';
-  document.getElementById('uploaderConcept').value = '';
-  window.photoData = {};
-  ['prev1','prev2'].forEach(id => { const e=document.getElementById(id); e.style.display='none'; e.src=''; });
-  ['icon1','icon2'].forEach(id => document.getElementById(id).style.display='');
-  ['hint1','hint2'].forEach(id => document.getElementById(id).style.display='');
-  showToast('🎉 تم رفع المشروع بنجاح على قاعدة البيانات!');
+    document.getElementById('uploaderName').value = '';
+    document.getElementById('uploaderConcept').value = '';
+    window.photoData = {};
+    ['prev1','prev2'].forEach(id => { const e=document.getElementById(id); e.style.display='none'; e.src=''; });
+    ['icon1','icon2'].forEach(id => document.getElementById(id).style.display='');
+    ['hint1','hint2'].forEach(id => document.getElementById(id).style.display='');
+    showToast('🎉 تم رفع المشروع بنجاح على قاعدة البيانات!');
+  } catch(e) {
+    console.error("Error uploading: ", e);
+    showToast("حصلت مشكلة في الرفع، تأكد من الإنترنت.");
+  }
+  
+  // فتح الزرار تاني بعد الرفع
+  btn.disabled = false;
+  btn.textContent = 'رفع المشروع ✅';
 }
 
 // ══════════════════════
